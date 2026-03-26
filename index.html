@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>PRO MAX 4.2</title>
+<title>PRO MAX 4.3</title>
 <style>
 body {
   background:#020617;
@@ -34,13 +34,21 @@ h1 { color:#38bdf8; }
 </head>
 <body>
 
-<h1>🤖 PRO MAX 4.2</h1>
+<h1>🤖 PRO MAX 4.3</h1>
 <div> Win: <span id="win">0</span>% | Total: <span id="total">0</span> </div>
 <div class="grid" id="grid"></div>
 
 <script>
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
-const pares = ["EUR/USD","GBP/USD"];
+
+// Lista de pares e tempos
+const pares = ["EUR/USD","GBP/USD","EUR/JPY","GBP/JPY"];
+const tempos = {
+    "EUR/USD": ["1min"],
+    "GBP/USD": ["1min"],
+    "EUR/JPY": ["1min"],
+    "GBP/JPY": ["1min"]
+};
 
 let total=0, wins=0;
 let pesos = { ema:1, rsi:1, tendencia:1 };
@@ -50,7 +58,7 @@ let historico = [];
 function criar(){
     const grid = document.getElementById("grid");
     pares.forEach(p=>{
-        ["1min","5min"].forEach(t=>{
+        tempos[p].forEach(t=>{
             const id = p.replace("/","")+t;
             grid.innerHTML += `
             <div class="card">
@@ -87,7 +95,7 @@ function rsi(d){
     for(let i=1;i<d.length;i++){
         let diff = d[i].close - d[i-1].close;
         if(diff>0) g+=diff;
-        else l -= diff; // perdas positivas
+        else l -= diff;
     }
     if(l === 0) return 100;
     let rs = g/l;
@@ -141,8 +149,7 @@ function verificarWinLoss(h){
     const now = Date.now();
 
     if(!h.verificado && now - h.tempoEntrada >= tempoExp){
-        // pegar candle mais próximo da expiração
-        let idx = Math.min(h.candleEntrada.length-1, h.tempo==="1min"?1:5);
+        let idx = Math.min(h.candleEntrada.length-1, 1);
         const precoFinal = h.candleEntrada[idx].close;
 
         let win = false;
@@ -183,14 +190,11 @@ function ajustar(win){
 function atualizarTimer(){
     const now = new Date();
     const s = now.getSeconds();
-    const m = now.getMinutes();
 
     const t1 = 60 - s;
-    const t5 = (5 - (m % 5)) * 60 - s;
 
     document.querySelectorAll("[id^='timer_']").forEach(el=>{
-        if(el.id.includes("1min")) el.innerText = "⏱️ " + t1 + "s";
-        else el.innerText = "⏱️ " + t5 + "s";
+        el.innerText = "⏱️ " + t1 + "s";
     });
 }
 
@@ -198,16 +202,16 @@ function atualizarTimer(){
 setInterval(async ()=>{
     const now = new Date();
     const s = now.getSeconds();
-    const m = now.getMinutes();
 
     atualizarTimer();
 
-    // gerar sinais
+    // gerar sinais 1min
     if(s === 0){
-        pares.forEach(p=>gerar(p,"1min"));
-    }
-    if(m%5===0 && s===0){
-        pares.forEach(p=>gerar(p,"5min"));
+        pares.forEach(p=>{
+            tempos[p].forEach(t=>{
+                gerar(p, t);
+            });
+        });
     }
 
     // verificar resultados
