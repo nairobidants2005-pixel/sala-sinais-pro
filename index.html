@@ -12,6 +12,10 @@ body {
   text-align: center;
 }
 
+h1 {
+  margin: 20px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -26,11 +30,17 @@ body {
 }
 
 .sinal {
-  font-size: 28px;
+  font-size: 26px;
+  margin: 10px 0;
 }
 
 .call { color: #00ff88; }
 .put { color: #ff3b3b; }
+.wait { color: #facc15; }
+
+.timer {
+  font-size: 18px;
+}
 </style>
 
 </head>
@@ -39,72 +49,126 @@ body {
 
 <h1>🔥 Sala de Sinais PRO</h1>
 
-<div class="grid">
-
-  <div class="card">
-    <h3>EUR/USD</h3>
-    <div id="eurusd" class="sinal">Carregando...</div>
-  </div>
-
-  <div class="card">
-    <h3>GBP/USD</h3>
-    <div id="gbpusd" class="sinal">Carregando...</div>
-  </div>
-
-  <div class="card">
-    <h3>EUR/JPY</h3>
-    <div id="eurjpy" class="sinal">Carregando...</div>
-  </div>
-
-  <div class="card">
-    <h3>GBP/JPY</h3>
-    <div id="gbpjpy" class="sinal">Carregando...</div>
-  </div>
-
-</div>
+<div class="grid" id="grid"></div>
 
 <script>
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
+const pares = ["EUR/USD","GBP/USD","EUR/JPY","GBP/JPY"];
+const tempos = ["1min","5min"];
 
-async function pegarSinal(par, id) {
+function criarPainel() {
+  const grid = document.getElementById("grid");
+
+  pares.forEach(par => {
+    tempos.forEach(t => {
+      const id = par.replace("/","") + t;
+
+      grid.innerHTML += `
+        <div class="card">
+          <h3>${par} ${t}</h3>
+          <div id="${id}" class="sinal wait">AGUARDAR</div>
+          <div id="timer_${id}" class="timer"></div>
+        </div>
+      `;
+    });
+  });
+}
+
+async function pegarDados(par, tempo) {
+  const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=50&apikey=${API_KEY}`;
+  const res = await fetch(url);
+  return await res.json();
+}
+
+// EMA
+function calcularEMA(dados, periodo) {
+  let k = 2 / (periodo + 1);
+  let ema = parseFloat(dados[0].close);
+
+  for (let i = 1; i < dados.length; i++) {
+    ema = (parseFloat(dados[i].close) * k) + (ema * (1 - k));
+  }
+
+  return ema;
+}
+
+// RSI
+function calcularRSI(dados) {
+  let ganhos = 0, perdas = 0;
+
+  for (let i = 1; i < 15; i++) {
+    let diff = dados[i-1].close - dados[i].close;
+    if (diff > 0) ganhos += diff;
+    else perdas -= diff;
+  }
+
+  let rs = ganhos / perdas;
+  return 100 - (100 / (1 + rs));
+}
+
+// GERAR SINAL
+async function gerar(par, tempo) {
+  const id = par.replace("/","") + tempo;
+  const el = document.getElementById(id);
+
   try {
-    const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=1min&outputsize=2&apikey=${API_KEY}`;
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await pegarDados(par, tempo);
 
     if (!data.values) {
-      document.getElementById(id).innerText = "ERRO API";
+      el.innerText = "ERRO API";
       return;
     }
 
-    const ultimo = data.values[0];
-    const anterior = data.values[1];
+    const valores = data.values;
 
-    const close = parseFloat(ultimo.close);
-    const prev = parseFloat(anterior.close);
+    const ema = calcularEMA(valores, 10);
+    const preco = parseFloat(valores[0].close);
+    const rsi = calcularRSI(valores);
 
-    if (close > prev) {
-      document.getElementById(id).innerText = "CALL";
-      document.getElementById(id).className = "sinal call";
-    } else {
-      document.getElementById(id).innerText = "PUT";
-      document.getElementById(id).className = "sinal put";
+    let sinal = "AGUARDAR";
+    el.className = "sinal wait";
+
+    if (preco > ema && rsi > 55) {
+      sinal = "CALL";
+      el.className = "sinal call";
+    }
+    else if (preco < ema && rsi < 45) {
+      sinal = "PUT";
+      el.className = "sinal put";
     }
 
-  } catch (e) {
-    document.getElementById(id).innerText = "ERRO";
+    el.innerText = sinal;
+
+  } catch {
+    el.innerText = "ERRO";
   }
 }
 
-function rodar() {
-  pegarSinal("EUR/USD", "eurusd");
-  pegarSinal("GBP/USD", "gbpusd");
-  pegarSinal("EUR/JPY", "eurjpy");
-  pegarSinal("GBP/JPY", "gbpjpy");
+// TIMER
+function atualizarTimer() {
+  const agora = new Date();
+  const s = agora.getSeconds();
+  const m = agora.getMinutes();
+
+  const m1 = 60 - s;
+  const m5 = (5 - (m % 5)) * 60 - s;
+
+  document.querySelectorAll(".timer").forEach(el => {
+    if (el.id.includes("1min")) el.innerText = m1 + "s";
+    else el.innerText = m5 + "s";
+  });
+
+  if (m1 === 0) pares.forEach(p => gerar(p,"1min"));
+  if (m5 === 0) pares.forEach(p => gerar(p,"5min"));
 }
 
-setInterval(rodar, 60000);
-rodar();
+// INIT
+criarPainel();
+setInterval(atualizarTimer, 1000);
+pares.forEach(p => {
+  gerar(p,"1min");
+  gerar(p,"5min");
+});
 </script>
 
 </body>
