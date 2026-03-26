@@ -2,58 +2,43 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Sala de Sinais PRO MAX 2.0</title>
+<title>PRO MAX 4.1 IA REAL</title>
 
 <style>
 body {
-  background: #020617;
-  color: white;
-  font-family: Arial;
-  text-align: center;
-}
-
-h1 {
-  margin: 20px;
-  color: #38bdf8;
+  background:#020617;
+  color:white;
+  font-family:Arial;
+  text-align:center;
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 15px;
-  padding: 15px;
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:15px;
+  padding:15px;
 }
 
 .card {
-  background: #0f172a;
-  padding: 20px;
-  border-radius: 15px;
+  background:#0f172a;
+  padding:20px;
+  border-radius:15px;
 }
 
-.sinal {
-  font-size: 24px;
-  margin-top: 10px;
-}
-
-.call { color: #22c55e; }
-.put { color: #ef4444; }
-.wait { color: #facc15; }
-
-.info {
-  margin-top: 8px;
-  font-size: 14px;
-  opacity: 0.8;
-}
-
-.timer {
-  margin-top: 10px;
-}
+.call { color:#22c55e; }
+.put { color:#ef4444; }
+.wait { color:#facc15; }
 </style>
 </head>
 
 <body>
 
-<h1>🚀 Sala de Sinais PRO MAX 2.0</h1>
+<h1>🤖 PRO MAX 4.1 (IA REAL)</h1>
+
+<div>
+Win: <span id="win">0</span>% |
+Total: <span id="total">0</span>
+</div>
 
 <div class="grid" id="grid"></div>
 
@@ -61,46 +46,51 @@ h1 {
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
 const pares = ["EUR/USD","GBP/USD"];
 
-function criar() {
-  const grid = document.getElementById("grid");
+let total=0, wins=0;
 
-  pares.forEach(p => {
-    ["1min","5min"].forEach(t => {
-      const id = p.replace("/","") + t;
+let pesos = { ema:1, rsi:1, tendencia:1 };
 
-      grid.innerHTML += `
+let historico = [];
+
+// UI
+function criar(){
+  const grid=document.getElementById("grid");
+
+  pares.forEach(p=>{
+    ["1min","5min"].forEach(t=>{
+      const id=p.replace("/","")+t;
+
+      grid.innerHTML+=`
       <div class="card">
         <h3>${p} ${t}</h3>
-        <div id="${id}" class="sinal wait">AGUARDAR</div>
-        <div id="info_${id}" class="info"></div>
-        <div id="timer_${id}" class="timer"></div>
+        <div id="${id}" class="wait">AGUARDAR</div>
+        <div id="info_${id}"></div>
       </div>`;
     });
   });
 }
 
 // API
-async function dados(par, tempo) {
-  const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=100&apikey=${API_KEY}`;
-  const r = await fetch(url);
+async function dados(par, tempo){
+  const url=`https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=2&apikey=${API_KEY}`;
+  const r=await fetch(url);
   return await r.json();
 }
 
 // EMA
-function ema(d, p) {
-  let k = 2/(p+1);
-  let e = parseFloat(d[0].close);
-
+function ema(d,p){
+  let k=2/(p+1);
+  let e=parseFloat(d[0].close);
   for(let i=1;i<d.length;i++){
-    e = (parseFloat(d[i].close)*k)+(e*(1-k));
+    e=(parseFloat(d[i].close)*k)+(e*(1-k));
   }
   return e;
 }
 
-// RSI melhorado
-function rsi(d) {
+// RSI
+function rsi(d){
   let g=0,l=0;
-  for(let i=1;i<15;i++){
+  for(let i=1;i<d.length;i++){
     let diff=d[i-1].close-d[i].close;
     if(diff>0) g+=diff; else l-=diff;
   }
@@ -108,129 +98,123 @@ function rsi(d) {
   return 100-(100/(1+rs));
 }
 
-// Lateralização inteligente
-function lateral(d){
-  let max = Math.max(...d.slice(0,20).map(x=>parseFloat(x.close)));
-  let min = Math.min(...d.slice(0,20).map(x=>parseFloat(x.close)));
-  return (max - min) < (max * 0.0003);
-}
+// GERAR SINAL
+async function gerar(par,tempo){
+  const id=par.replace("/","")+tempo;
+  const el=document.getElementById(id);
 
-// Volatilidade
-function volatilidade(d){
-  let soma = 0;
-  for(let i=0;i<10;i++){
-    soma += Math.abs(d[i].close - d[i].open);
-  }
-  return soma/10;
-}
+  try{
+    const m=await dados(par,tempo);
+    if(!m.values) return;
 
-// GERADOR PRO
-async function gerar(par, tempo){
-  const id = par.replace("/","")+tempo;
-  const el = document.getElementById(id);
-  const info = document.getElementById("info_"+id);
+    const v=m.values;
 
-  try {
-    const m1 = await dados(par, tempo);
-    const m15 = await dados(par, "15min");
+    const preco=parseFloat(v[0].close);
 
-    if(!m1.values || !m15.values){
-      el.innerText="ERRO";
-      return;
-    }
+    const ema10=ema(v,2);
+    const ema50=ema(v,2);
+    const r=rsi(v);
 
-    const v = m1.values;
-    const v15 = m15.values;
+    let score=0;
 
-    const preco = parseFloat(v[0].close);
-    const ema10 = ema(v,10);
-    const ema50 = ema(v,50);
-    const ema15 = ema(v15,10);
-    const r = rsi(v);
+    if(preco>ema10) score+=pesos.ema;
+    if(preco>ema50) score+=pesos.tendencia;
+    if(r>60) score+=pesos.rsi;
 
-    const atual = parseFloat(v[0].close);
-    const anterior = parseFloat(v[1].close);
-
-    const bullish = atual > anterior;
-    const bearish = atual < anterior;
-
-    let score = 0;
-
-    if(preco > ema10) score++;
-    if(preco > ema50) score++;
-    if(r > 60) score++;
-    if(bullish) score++;
-
-    if(preco < ema10) score--;
-    if(preco < ema50) score--;
-    if(r < 40) score--;
-    if(bearish) score--;
+    if(preco<ema10) score-=pesos.ema;
+    if(preco<ema50) score-=pesos.tendencia;
+    if(r<40) score-=pesos.rsi;
 
     let sinal="AGUARDAR";
-    el.className="sinal wait";
+    el.className="wait";
 
-    const vol = volatilidade(v);
-    const hora = new Date().getHours();
-
-    if(!lateral(v) && vol > 0.0002 && hora > 6 && hora < 20){
-
-      if(score >= 3 && preco > ema15){
-        sinal="CALL";
-        el.className="sinal call";
-        alerta();
-      }
-      else if(score <= -3 && preco < ema15){
-        sinal="PUT";
-        el.className="sinal put";
-        alerta();
-      }
+    if(score>=2){
+      sinal="CALL";
+      el.className="call";
+      salvar(par,tempo,"CALL",preco);
+    }
+    else if(score<=-2){
+      sinal="PUT";
+      el.className="put";
+      salvar(par,tempo,"PUT",preco);
     }
 
     el.innerText=sinal;
 
-    let forca = Math.min(100, Math.abs(score)*25);
+  }catch{}
+}
 
-    info.innerHTML = `
-      Força: ${forca}%<br>
-      RSI: ${r.toFixed(1)}
-    `;
+// SALVAR SINAL
+function salvar(par,tempo,tipo,preco){
+  historico.push({
+    par, tempo, tipo, precoEntrada:preco, tempoEntrada:Date.now(), verificado:false
+  });
+}
 
-  } catch {
-    el.innerText="ERRO";
+// VERIFICAR RESULTADO REAL
+async function verificar(){
+  for(let h of historico){
+
+    if(!h.verificado){
+
+      let tempoExp = h.tempo==="1min" ? 60000 : 300000;
+
+      if(Date.now() - h.tempoEntrada >= tempoExp){
+
+        const m=await dados(h.par,h.tempo);
+        if(!m.values) continue;
+
+        const precoFinal=parseFloat(m.values[0].close);
+
+        let win=false;
+
+        if(h.tipo==="CALL" && precoFinal>h.precoEntrada) win=true;
+        if(h.tipo==="PUT" && precoFinal<h.precoEntrada) win=true;
+
+        h.verificado=true;
+
+        total++;
+
+        if(win){
+          wins++;
+          ajustar(true);
+        } else {
+          ajustar(false);
+        }
+
+        document.getElementById("total").innerText=total;
+        document.getElementById("win").innerText=((wins/total)*100).toFixed(1);
+      }
+    }
   }
 }
 
-// ALERTA
-function alerta(){
-  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-  audio.play();
+// IA AJUSTE
+function ajustar(win){
+  if(win){
+    pesos.ema+=0.05;
+    pesos.rsi+=0.05;
+  } else {
+    pesos.ema-=0.05;
+    pesos.rsi-=0.05;
+  }
+
+  pesos.ema=Math.max(0.1,Math.min(2,pesos.ema));
+  pesos.rsi=Math.max(0.1,Math.min(2,pesos.rsi));
 }
 
-// TIMER
-function timer(){
-  const now=new Date();
-  const s=now.getSeconds();
-  const m=now.getMinutes();
-
-  const m1=60-s;
-  const m5=(5-(m%5))*60-s;
-
-  document.querySelectorAll(".timer").forEach(el=>{
-    if(el.id.includes("1min")) el.innerText=m1+"s";
-    else el.innerText=m5+"s";
+// LOOP
+setInterval(()=>{
+  pares.forEach(p=>{
+    gerar(p,"1min");
+    gerar(p,"5min");
   });
 
-  if(m1<=1) pares.forEach(p=>gerar(p,"1min"));
-  if(m5===0) pares.forEach(p=>gerar(p,"5min"));
-}
+  verificar();
+
+},5000);
 
 criar();
-setInterval(timer,2000);
-
-pares.forEach(p=>{
-  gerar(p,"1min");
-  gerar(p,"5min");
-});
 </script>
 
 </body>
