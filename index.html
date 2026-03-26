@@ -2,11 +2,11 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Sala de Sinais PRO</title>
+<title>Sala de Sinais PRO MAX</title>
 
 <style>
 body {
-  background: #0f172a;
+  background: #020617;
   color: white;
   font-family: Arial;
   text-align: center;
@@ -14,158 +14,171 @@ body {
 
 h1 {
   margin: 20px;
+  color: #38bdf8;
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  padding: 20px;
+  gap: 15px;
+  padding: 15px;
 }
 
 .card {
-  background: #1e293b;
+  background: #0f172a;
   padding: 20px;
   border-radius: 15px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.5);
 }
 
 .sinal {
-  font-size: 26px;
-  margin: 10px 0;
+  font-size: 24px;
+  margin-top: 10px;
 }
 
-.call { color: #00ff88; }
-.put { color: #ff3b3b; }
+.call { color: #22c55e; }
+.put { color: #ef4444; }
 .wait { color: #facc15; }
 
 .timer {
-  font-size: 18px;
+  margin-top: 10px;
 }
 </style>
-
 </head>
 
 <body>
 
-<h1>🔥 Sala de Sinais PRO</h1>
+<h1>🚀 Sala de Sinais PRO MAX</h1>
 
 <div class="grid" id="grid"></div>
 
 <script>
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
 const pares = ["EUR/USD","GBP/USD","EUR/JPY","GBP/JPY"];
-const tempos = ["1min","5min"];
 
-function criarPainel() {
+function criar() {
   const grid = document.getElementById("grid");
 
-  pares.forEach(par => {
-    tempos.forEach(t => {
-      const id = par.replace("/","") + t;
+  pares.forEach(p => {
+    ["1min","5min"].forEach(t => {
+      const id = p.replace("/","") + t;
 
       grid.innerHTML += `
-        <div class="card">
-          <h3>${par} ${t}</h3>
-          <div id="${id}" class="sinal wait">AGUARDAR</div>
-          <div id="timer_${id}" class="timer"></div>
-        </div>
-      `;
+      <div class="card">
+        <h3>${p} ${t}</h3>
+        <div id="${id}" class="sinal wait">AGUARDAR</div>
+        <div id="timer_${id}" class="timer"></div>
+      </div>`;
     });
   });
 }
 
-async function pegarDados(par, tempo) {
-  const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=50&apikey=${API_KEY}`;
-  const res = await fetch(url);
-  return await res.json();
+async function dados(par, tempo) {
+  const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=100&apikey=${API_KEY}`;
+  const r = await fetch(url);
+  return await r.json();
 }
 
 // EMA
-function calcularEMA(dados, periodo) {
-  let k = 2 / (periodo + 1);
-  let ema = parseFloat(dados[0].close);
+function ema(d, p) {
+  let k = 2/(p+1);
+  let e = parseFloat(d[0].close);
 
-  for (let i = 1; i < dados.length; i++) {
-    ema = (parseFloat(dados[i].close) * k) + (ema * (1 - k));
+  for(let i=1;i<d.length;i++){
+    e = (parseFloat(d[i].close)*k)+(e*(1-k));
   }
-
-  return ema;
+  return e;
 }
 
 // RSI
-function calcularRSI(dados) {
-  let ganhos = 0, perdas = 0;
-
-  for (let i = 1; i < 15; i++) {
-    let diff = dados[i-1].close - dados[i].close;
-    if (diff > 0) ganhos += diff;
-    else perdas -= diff;
+function rsi(d) {
+  let g=0,l=0;
+  for(let i=1;i<15;i++){
+    let diff=d[i-1].close-d[i].close;
+    if(diff>0) g+=diff; else l-=diff;
   }
-
-  let rs = ganhos / perdas;
-  return 100 - (100 / (1 + rs));
+  let rs=g/l;
+  return 100-(100/(1+rs));
 }
 
-// GERAR SINAL
-async function gerar(par, tempo) {
-  const id = par.replace("/","") + tempo;
+// LATERALIZAÇÃO
+function lateral(d){
+  let max=0,min=999999;
+  for(let i=0;i<20;i++){
+    let c=parseFloat(d[i].close);
+    if(c>max) max=c;
+    if(c<min) min=c;
+  }
+  return (max-min)<0.0005;
+}
+
+// GERADOR PRO
+async function gerar(par, tempo){
+  const id = par.replace("/","")+tempo;
   const el = document.getElementById(id);
 
   try {
-    const data = await pegarDados(par, tempo);
+    const m1 = await dados(par, tempo);
+    const m15 = await dados(par, "15min");
 
-    if (!data.values) {
-      el.innerText = "ERRO API";
+    if(!m1.values || !m15.values){
+      el.innerText="ERRO";
       return;
     }
 
-    const valores = data.values;
+    const v = m1.values;
+    const v15 = m15.values;
 
-    const ema = calcularEMA(valores, 10);
-    const preco = parseFloat(valores[0].close);
-    const rsi = calcularRSI(valores);
+    const preco = parseFloat(v[0].close);
+    const ema10 = ema(v,10);
+    const ema15 = ema(v15,10);
+    const r = rsi(v);
 
-    let sinal = "AGUARDAR";
-    el.className = "sinal wait";
+    let sinal="AGUARDAR";
+    el.className="sinal wait";
 
-    if (preco > ema && rsi > 55) {
-      sinal = "CALL";
-      el.className = "sinal call";
+    if(!lateral(v)){
+      // CALL
+      if(preco>ema10 && preco>ema15 && r>55){
+        sinal="CALL";
+        el.className="sinal call";
+      }
+      // PUT
+      else if(preco<ema10 && preco<ema15 && r<45){
+        sinal="PUT";
+        el.className="sinal put";
+      }
     }
-    else if (preco < ema && rsi < 45) {
-      sinal = "PUT";
-      el.className = "sinal put";
-    }
 
-    el.innerText = sinal;
+    el.innerText=sinal;
 
   } catch {
-    el.innerText = "ERRO";
+    el.innerText="ERRO";
   }
 }
 
 // TIMER
-function atualizarTimer() {
-  const agora = new Date();
-  const s = agora.getSeconds();
-  const m = agora.getMinutes();
+function timer(){
+  const now=new Date();
+  const s=now.getSeconds();
+  const m=now.getMinutes();
 
-  const m1 = 60 - s;
-  const m5 = (5 - (m % 5)) * 60 - s;
+  const m1=60-s;
+  const m5=(5-(m%5))*60-s;
 
-  document.querySelectorAll(".timer").forEach(el => {
-    if (el.id.includes("1min")) el.innerText = m1 + "s";
-    else el.innerText = m5 + "s";
+  document.querySelectorAll(".timer").forEach(el=>{
+    if(el.id.includes("1min")) el.innerText=m1+"s";
+    else el.innerText=m5+"s";
   });
 
-  if (m1 === 0) pares.forEach(p => gerar(p,"1min"));
-  if (m5 === 0) pares.forEach(p => gerar(p,"5min"));
+  if(m1===0) pares.forEach(p=>gerar(p,"1min"));
+  if(m5===0) pares.forEach(p=>gerar(p,"5min"));
 }
 
-// INIT
-criarPainel();
-setInterval(atualizarTimer, 1000);
-pares.forEach(p => {
+criar();
+setInterval(timer,1000);
+
+pares.forEach(p=>{
   gerar(p,"1min");
   gerar(p,"5min");
 });
