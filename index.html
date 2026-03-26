@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>PRO MAX 4.1 IA REAL</title>
+<title>PRO MAX 4.1 FINAL</title>
 
 <style>
 body {
@@ -11,6 +11,8 @@ body {
   font-family:Arial;
   text-align:center;
 }
+
+h1 { color:#38bdf8; }
 
 .grid {
   display:grid;
@@ -25,15 +27,21 @@ body {
   border-radius:15px;
 }
 
-.call { color:#22c55e; }
-.put { color:#ef4444; }
+.call { color:#22c55e; font-size:22px; }
+.put { color:#ef4444; font-size:22px; }
 .wait { color:#facc15; }
+
+.timer {
+  margin-top:8px;
+  color:#38bdf8;
+  font-size:14px;
+}
 </style>
 </head>
 
 <body>
 
-<h1>🤖 PRO MAX 4.1 (IA REAL)</h1>
+<h1>🤖 PRO MAX 4.1 FINAL</h1>
 
 <div>
 Win: <span id="win">0</span>% |
@@ -49,7 +57,6 @@ const pares = ["EUR/USD","GBP/USD"];
 let total=0, wins=0;
 
 let pesos = { ema:1, rsi:1, tendencia:1 };
-
 let historico = [];
 
 // UI
@@ -65,6 +72,7 @@ function criar(){
         <h3>${p} ${t}</h3>
         <div id="${id}" class="wait">AGUARDAR</div>
         <div id="info_${id}"></div>
+        <div id="timer_${id}" class="timer"></div>
       </div>`;
     });
   });
@@ -72,7 +80,7 @@ function criar(){
 
 // API
 async function dados(par, tempo){
-  const url=`https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=2&apikey=${API_KEY}`;
+  const url=`https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=10&apikey=${API_KEY}`;
   const r=await fetch(url);
   return await r.json();
 }
@@ -111,8 +119,8 @@ async function gerar(par,tempo){
 
     const preco=parseFloat(v[0].close);
 
-    const ema10=ema(v,2);
-    const ema50=ema(v,2);
+    const ema10=ema(v,5);
+    const ema50=ema(v,8);
     const r=rsi(v);
 
     let score=0;
@@ -144,10 +152,13 @@ async function gerar(par,tempo){
   }catch{}
 }
 
-// SALVAR SINAL
+// SALVAR
 function salvar(par,tempo,tipo,preco){
   historico.push({
-    par, tempo, tipo, precoEntrada:preco, tempoEntrada:Date.now(), verificado:false
+    par, tempo, tipo,
+    precoEntrada:preco,
+    tempoEntrada:Date.now(),
+    verificado:false
   });
 }
 
@@ -159,7 +170,7 @@ async function verificar(){
 
       let tempoExp = h.tempo==="1min" ? 60000 : 300000;
 
-      if(Date.now() - h.tempoEntrada >= tempoExp){
+      if(Date.now()-h.tempoEntrada >= tempoExp){
 
         const m=await dados(h.par,h.tempo);
         if(!m.values) continue;
@@ -189,7 +200,7 @@ async function verificar(){
   }
 }
 
-// IA AJUSTE
+// IA
 function ajustar(win){
   if(win){
     pesos.ema+=0.05;
@@ -203,16 +214,43 @@ function ajustar(win){
   pesos.rsi=Math.max(0.1,Math.min(2,pesos.rsi));
 }
 
-// LOOP
-setInterval(()=>{
-  pares.forEach(p=>{
-    gerar(p,"1min");
-    gerar(p,"5min");
+// TIMER
+function atualizarTimer(){
+  const now = new Date();
+  const s = now.getSeconds();
+  const m = now.getMinutes();
+
+  const t1 = 60 - s;
+  const t5 = (5 - (m % 5)) * 60 - s;
+
+  document.querySelectorAll("[id^='timer_']").forEach(el=>{
+    if(el.id.includes("1min")){
+      el.innerText = "⏱️ " + t1 + "s";
+    } else {
+      el.innerText = "⏱️ " + t5 + "s";
+    }
   });
+}
+
+// LOOP SINCRONIZADO
+setInterval(()=>{
+  const now = new Date();
+  const s = now.getSeconds();
+  const m = now.getMinutes();
+
+  atualizarTimer();
+
+  if(s === 0){
+    pares.forEach(p=>gerar(p,"1min"));
+  }
+
+  if(m % 5 === 0 && s === 0){
+    pares.forEach(p=>gerar(p,"5min"));
+  }
 
   verificar();
 
-},5000);
+},1000);
 
 criar();
 </script>
