@@ -54,7 +54,7 @@ h1 {
 
 <script>
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
-const pares = ["EUR/USD","GBP/USD","EUR/JPY","GBP/JPY"];
+const pares = ["EUR/USD","GBP/USD"];
 
 function criar() {
   const grid = document.getElementById("grid");
@@ -171,12 +171,12 @@ function timer(){
     else el.innerText=m5+"s";
   });
 
-  if(m1===0) pares.forEach(p=>gerar(p,"1min"));
+ if(m1<=1) pares.forEach(p=>gerar(p,"1min"));
   if(m5===0) pares.forEach(p=>gerar(p,"5min"));
 }
 
 criar();
-setInterval(timer,1000);
+setInterval(timer,2000);
 
 pares.forEach(p=>{
   gerar(p,"1min");
