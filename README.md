@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Sala de Sinais PRO</title>
+<meta charset="UTF-8">
+<title>Sala de Sinais PRO</title>
 
 <style>
 body {
@@ -31,10 +31,6 @@ body {
 
 .call { color: #00ff88; }
 .put { color: #ff3b3b; }
-
-.timer {
-  font-size: 20px;
-}
 </style>
 
 </head>
@@ -46,27 +42,23 @@ body {
 <div class="grid">
 
   <div class="card">
-    <h3>EUR/USD M1</h3>
+    <h3>EUR/USD</h3>
     <div id="eurusd_m1" class="sinal">...</div>
-    <div id="timer_eurusd_m1" class="timer"></div>
   </div>
 
   <div class="card">
-    <h3>GBP/USD M1</h3>
+    <h3>GBP/USD</h3>
     <div id="gbpusd_m1" class="sinal">...</div>
-    <div id="timer_gbpusd_m1" class="timer"></div>
   </div>
 
   <div class="card">
-    <h3>EUR/JPY M1</h3>
+    <h3>EUR/JPY</h3>
     <div id="eurjpy_m1" class="sinal">...</div>
-    <div id="timer_eurjpy_m1" class="timer"></div>
   </div>
 
   <div class="card">
-    <h3>GBP/JPY M1</h3>
+    <h3>GBP/JPY</h3>
     <div id="gbpjpy_m1" class="sinal">...</div>
-    <div id="timer_gbpjpy_m1" class="timer"></div>
   </div>
 
 </div>
@@ -93,10 +85,10 @@ async function gerar(par, elemento, key) {
 
   const forca = Math.abs(close - open);
 
-  if (close > anterior.close && forca > 0.0002) {
+  if (close > parseFloat(anterior.close) && forca > 0.0002) {
     sinal = "CALL";
     elemento.className = "sinal call";
-  } else if (close < anterior.close && forca > 0.0002) {
+  } else if (close < parseFloat(anterior.close) && forca > 0.0002) {
     sinal = "PUT";
     elemento.className = "sinal put";
   }
