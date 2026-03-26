@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>PRO MAX 4.3</title>
+<title>PRO MAX 4.4</title>
 <style>
 body {
   background:#020617;
@@ -34,23 +34,16 @@ h1 { color:#38bdf8; }
 </head>
 <body>
 
-<h1>🤖 PRO MAX 4.3</h1>
-<div> Win: <span id="win">0</span>% | Total: <span id="total">0</span> </div>
-<div class="grid" id="grid"></div>
+<h1>🤖 PRO MAX 4.4</h1>
+<div id="grid-container">
+  <div class="grid" id="grid"></div>
+</div>
 
 <script>
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
-
-// Lista de pares e tempos
 const pares = ["EUR/USD","GBP/USD","EUR/JPY","GBP/JPY"];
-const tempos = {
-    "EUR/USD": ["1min"],
-    "GBP/USD": ["1min"],
-    "EUR/JPY": ["1min"],
-    "GBP/JPY": ["1min"]
-};
+const tempos = { "EUR/USD":["1min"], "GBP/USD":["1min"], "EUR/JPY":["1min"], "GBP/JPY":["1min"] };
 
-let total=0, wins=0;
 let pesos = { ema:1, rsi:1, tendencia:1 };
 let historico = [];
 
@@ -80,12 +73,10 @@ async function dados(par, tempo){
 }
 
 // EMA
-function ema(d, p){
+function ema(d,p){
     let k = 2/(p+1);
     let e = d[0].close;
-    for(let i=1;i<d.length;i++){
-        e = (d[i].close*k) + (e*(1-k));
-    }
+    for(let i=1;i<d.length;i++) e = (d[i].close*k)+(e*(1-k));
     return e;
 }
 
@@ -94,12 +85,10 @@ function rsi(d){
     let g=0,l=0;
     for(let i=1;i<d.length;i++){
         let diff = d[i].close - d[i-1].close;
-        if(diff>0) g+=diff;
-        else l -= diff;
+        if(diff>0) g+=diff; else l -= diff;
     }
-    if(l === 0) return 100;
-    let rs = g/l;
-    return 100 - (100/(1+rs));
+    if(l===0) return 100;
+    return 100 - (100/(1+(g/l)));
 }
 
 // SALVAR SINAL
@@ -113,7 +102,7 @@ function salvar(par, tempo, tipo, preco, candleData){
     });
 }
 
-// GERAR SINAL
+// GERAR SINAL (mais frequente e flexível)
 async function gerar(par, tempo){
     const id = par.replace("/","")+tempo;
     const el = document.getElementById(id);
@@ -129,27 +118,27 @@ async function gerar(par, tempo){
     let sinal = "AGUARDAR";
     el.className = "wait";
 
-    // Condições de sinal
-    if(preco > ema10 && preco > ema50 && r>60){
-        sinal="CALL";
-        el.className="call";
+    // Novas condições mais flexíveis
+    if(preco > ema10 && r > 55){
+        sinal = "CALL";
+        el.className = "call";
         salvar(par, tempo, "CALL", preco, v);
-    } else if(preco < ema10 && preco < ema50 && r<40){
-        sinal="PUT";
-        el.className="put";
+    } else if(preco < ema10 && r < 45){
+        sinal = "PUT";
+        el.className = "put";
         salvar(par, tempo, "PUT", preco, v);
     }
 
     el.innerText = sinal;
 }
 
-// VERIFICAR RESULTADOS
+// VERIFICAR RESULTADOS (mantém histórico, mas sem %)
 function verificarWinLoss(h){
-    const tempoExp = h.tempo === "1min" ? 60000 : 300000;
+    const tempoExp = 60000; // 1min fixo
     const now = Date.now();
 
     if(!h.verificado && now - h.tempoEntrada >= tempoExp){
-        let idx = Math.min(h.candleEntrada.length-1, 1);
+        let idx = Math.min(h.candleEntrada.length-1,1);
         const precoFinal = h.candleEntrada[idx].close;
 
         let win = false;
@@ -157,65 +146,44 @@ function verificarWinLoss(h){
         if(h.tipo==="PUT" && precoFinal < h.precoEntrada) win=true;
 
         h.verificado = true;
-        total++;
+
+        // Ajuste de IA
         if(win){
-            wins++;
-            ajustar(true);
+            pesos.ema += 0.05;
+            pesos.rsi += 0.05;
         } else {
-            ajustar(false);
+            pesos.ema -= 0.05;
+            pesos.rsi -= 0.05;
         }
-
-        document.getElementById("total").innerText = total;
-        document.getElementById("win").innerText = ((wins/total)*100).toFixed(1);
+        pesos.ema = Math.max(0.1, Math.min(2, pesos.ema));
+        pesos.rsi = Math.max(0.1, Math.min(2, pesos.rsi));
     }
-}
-
-// AJUSTAR IA
-function ajustar(win){
-    if(win){
-        pesos.ema += 0.05;
-        pesos.rsi += 0.05;
-        pesos.tendencia += 0.05;
-    } else {
-        pesos.ema -= 0.05;
-        pesos.rsi -= 0.05;
-        pesos.tendencia -= 0.05;
-    }
-    pesos.ema = Math.max(0.1, Math.min(2, pesos.ema));
-    pesos.rsi = Math.max(0.1, Math.min(2, pesos.rsi));
-    pesos.tendencia = Math.max(0.1, Math.min(2, pesos.tendencia));
 }
 
 // TIMER
 function atualizarTimer(){
-    const now = new Date();
-    const s = now.getSeconds();
-
+    const s = new Date().getSeconds();
     const t1 = 60 - s;
-
-    document.querySelectorAll("[id^='timer_']").forEach(el=>{
-        el.innerText = "⏱️ " + t1 + "s";
-    });
+    document.querySelectorAll("[id^='timer_']").forEach(el=>el.innerText="⏱️ "+t1+"s");
 }
 
 // LOOP PRINCIPAL
 setInterval(async ()=>{
-    const now = new Date();
-    const s = now.getSeconds();
-
+    const s = new Date().getSeconds();
     atualizarTimer();
 
-    // gerar sinais 1min
-    if(s === 0){
+    // gerar sinais a cada minuto
+    if(s===0){
         pares.forEach(p=>{
             tempos[p].forEach(t=>{
-                gerar(p, t);
+                gerar(p,t);
             });
         });
     }
 
-    // verificar resultados
+    // verificar histórico
     historico.forEach(h=>verificarWinLoss(h));
+
 },1000);
 
 criar();
