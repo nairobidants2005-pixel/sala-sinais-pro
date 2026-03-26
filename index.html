@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Sala de Sinais PRO MAX</title>
+<title>Sala de Sinais PRO MAX 2.0</title>
 
 <style>
 body {
@@ -28,7 +28,6 @@ h1 {
   background: #0f172a;
   padding: 20px;
   border-radius: 15px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.5);
 }
 
 .sinal {
@@ -40,6 +39,12 @@ h1 {
 .put { color: #ef4444; }
 .wait { color: #facc15; }
 
+.info {
+  margin-top: 8px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
 .timer {
   margin-top: 10px;
 }
@@ -48,7 +53,7 @@ h1 {
 
 <body>
 
-<h1>🚀 Sala de Sinais PRO MAX</h1>
+<h1>🚀 Sala de Sinais PRO MAX 2.0</h1>
 
 <div class="grid" id="grid"></div>
 
@@ -67,12 +72,14 @@ function criar() {
       <div class="card">
         <h3>${p} ${t}</h3>
         <div id="${id}" class="sinal wait">AGUARDAR</div>
+        <div id="info_${id}" class="info"></div>
         <div id="timer_${id}" class="timer"></div>
       </div>`;
     });
   });
 }
 
+// API
 async function dados(par, tempo) {
   const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=100&apikey=${API_KEY}`;
   const r = await fetch(url);
@@ -90,7 +97,7 @@ function ema(d, p) {
   return e;
 }
 
-// RSI
+// RSI melhorado
 function rsi(d) {
   let g=0,l=0;
   for(let i=1;i<15;i++){
@@ -101,21 +108,27 @@ function rsi(d) {
   return 100-(100/(1+rs));
 }
 
-// LATERALIZAÇÃO
+// Lateralização inteligente
 function lateral(d){
-  let max=0,min=999999;
-  for(let i=0;i<20;i++){
-    let c=parseFloat(d[i].close);
-    if(c>max) max=c;
-    if(c<min) min=c;
+  let max = Math.max(...d.slice(0,20).map(x=>parseFloat(x.close)));
+  let min = Math.min(...d.slice(0,20).map(x=>parseFloat(x.close)));
+  return (max - min) < (max * 0.0003);
+}
+
+// Volatilidade
+function volatilidade(d){
+  let soma = 0;
+  for(let i=0;i<10;i++){
+    soma += Math.abs(d[i].close - d[i].open);
   }
-  return (max-min)<0.0005;
+  return soma/10;
 }
 
 // GERADOR PRO
 async function gerar(par, tempo){
   const id = par.replace("/","")+tempo;
   const el = document.getElementById(id);
+  const info = document.getElementById("info_"+id);
 
   try {
     const m1 = await dados(par, tempo);
@@ -131,30 +144,66 @@ async function gerar(par, tempo){
 
     const preco = parseFloat(v[0].close);
     const ema10 = ema(v,10);
+    const ema50 = ema(v,50);
     const ema15 = ema(v15,10);
     const r = rsi(v);
+
+    const atual = parseFloat(v[0].close);
+    const anterior = parseFloat(v[1].close);
+
+    const bullish = atual > anterior;
+    const bearish = atual < anterior;
+
+    let score = 0;
+
+    if(preco > ema10) score++;
+    if(preco > ema50) score++;
+    if(r > 60) score++;
+    if(bullish) score++;
+
+    if(preco < ema10) score--;
+    if(preco < ema50) score--;
+    if(r < 40) score--;
+    if(bearish) score--;
 
     let sinal="AGUARDAR";
     el.className="sinal wait";
 
-    if(!lateral(v)){
-      // CALL
-      if(preco>ema10 && preco>ema15 && r>55){
+    const vol = volatilidade(v);
+    const hora = new Date().getHours();
+
+    if(!lateral(v) && vol > 0.0002 && hora > 6 && hora < 20){
+
+      if(score >= 3 && preco > ema15){
         sinal="CALL";
         el.className="sinal call";
+        alerta();
       }
-      // PUT
-      else if(preco<ema10 && preco<ema15 && r<45){
+      else if(score <= -3 && preco < ema15){
         sinal="PUT";
         el.className="sinal put";
+        alerta();
       }
     }
 
     el.innerText=sinal;
 
+    let forca = Math.min(100, Math.abs(score)*25);
+
+    info.innerHTML = `
+      Força: ${forca}%<br>
+      RSI: ${r.toFixed(1)}
+    `;
+
   } catch {
     el.innerText="ERRO";
   }
+}
+
+// ALERTA
+function alerta(){
+  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  audio.play();
 }
 
 // TIMER
@@ -171,7 +220,7 @@ function timer(){
     else el.innerText=m5+"s";
   });
 
- if(m1<=1) pares.forEach(p=>gerar(p,"1min"));
+  if(m1<=1) pares.forEach(p=>gerar(p,"1min"));
   if(m5===0) pares.forEach(p=>gerar(p,"5min"));
 }
 
