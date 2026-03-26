@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>PRO MAX 4.4</title>
+<title>PRO MAX 4.6 - Ultra Agressivo</title>
 <style>
 body {
   background:#020617;
@@ -21,23 +21,34 @@ h1 { color:#38bdf8; }
   background:#0f172a;
   padding:20px;
   border-radius:15px;
+  transition: background 0.3s;
 }
 .call { color:#22c55e; font-size:22px; }
 .put { color:#ef4444; font-size:22px; }
-.wait { color:#facc15; }
+.wait { color:#facc15; font-size:22px; }
 .timer {
   margin-top:8px;
   color:#38bdf8;
   font-size:14px;
 }
+.blink {
+  animation: blink 0.5s ease-in-out 4;
+}
+@keyframes blink {
+  0% { background-color: #0f172a; }
+  25% { background-color: #065f46; }
+  50% { background-color: #0f172a; }
+  75% { background-color: #065f46; }
+  100% { background-color: #0f172a; }
+}
 </style>
 </head>
 <body>
 
-<h1>🤖 PRO MAX 4.4</h1>
-<div id="grid-container">
-  <div class="grid" id="grid"></div>
-</div>
+<h1>🤖 PRO MAX 4.6 - Ultra Agressivo</h1>
+<div class="grid" id="grid"></div>
+
+<audio id="alertSound" src="https://www.soundjay.com/button/beep-07.wav" preload="auto"></audio>
 
 <script>
 const API_KEY = "b7a8442395824a299190dc6f20845d6a";
@@ -47,7 +58,6 @@ const tempos = { "EUR/USD":["1min"], "GBP/USD":["1min"], "EUR/JPY":["1min"], "GB
 let pesos = { ema:1, rsi:1, tendencia:1 };
 let historico = [];
 
-// CRIAR GRID
 function criar(){
     const grid = document.getElementById("grid");
     pares.forEach(p=>{
@@ -63,7 +73,6 @@ function criar(){
     });
 }
 
-// FETCH DE DADOS
 async function dados(par, tempo){
     const url=`https://api.twelvedata.com/time_series?symbol=${par}&interval=${tempo}&outputsize=10&apikey=${API_KEY}`;
     const r = await fetch(url);
@@ -72,7 +81,6 @@ async function dados(par, tempo){
     return data.values.map(v => ({ close: parseFloat(v.close), datetime: v.datetime }));
 }
 
-// EMA
 function ema(d,p){
     let k = 2/(p+1);
     let e = d[0].close;
@@ -80,7 +88,6 @@ function ema(d,p){
     return e;
 }
 
-// RSI
 function rsi(d){
     let g=0,l=0;
     for(let i=1;i<d.length;i++){
@@ -91,7 +98,6 @@ function rsi(d){
     return 100 - (100/(1+(g/l)));
 }
 
-// SALVAR SINAL
 function salvar(par, tempo, tipo, preco, candleData){
     historico.push({
         par, tempo, tipo,
@@ -102,7 +108,13 @@ function salvar(par, tempo, tipo, preco, candleData){
     });
 }
 
-// GERAR SINAL (mais frequente e flexível)
+function tocarAlerta(){
+    const sound = document.getElementById("alertSound");
+    sound.currentTime = 0;
+    sound.play();
+}
+
+// GERAR SINAL ULTRA-AGRESSIVO
 async function gerar(par, tempo){
     const id = par.replace("/","")+tempo;
     const el = document.getElementById(id);
@@ -118,25 +130,26 @@ async function gerar(par, tempo){
     let sinal = "AGUARDAR";
     el.className = "wait";
 
-    // Novas condições mais flexíveis
-    if(preco > ema10 && r > 55){
-        sinal = "CALL";
-        el.className = "call";
+    // Condições ultra-agressivas
+    if((preco > ema10 || preco > ema50*0.997) && r > 48){
+        sinal="CALL";
+        el.className="call blink";
+        tocarAlerta();
         salvar(par, tempo, "CALL", preco, v);
-    } else if(preco < ema10 && r < 45){
-        sinal = "PUT";
-        el.className = "put";
+    } else if((preco < ema10 || preco < ema50*1.003) && r < 52){
+        sinal="PUT";
+        el.className="put blink";
+        tocarAlerta();
         salvar(par, tempo, "PUT", preco, v);
     }
 
     el.innerText = sinal;
 }
 
-// VERIFICAR RESULTADOS (mantém histórico, mas sem %)
+// VERIFICAR RESULTADOS
 function verificarWinLoss(h){
-    const tempoExp = 60000; // 1min fixo
+    const tempoExp = 60000;
     const now = Date.now();
-
     if(!h.verificado && now - h.tempoEntrada >= tempoExp){
         let idx = Math.min(h.candleEntrada.length-1,1);
         const precoFinal = h.candleEntrada[idx].close;
@@ -147,7 +160,7 @@ function verificarWinLoss(h){
 
         h.verificado = true;
 
-        // Ajuste de IA
+        // Ajuste IA
         if(win){
             pesos.ema += 0.05;
             pesos.rsi += 0.05;
@@ -160,19 +173,16 @@ function verificarWinLoss(h){
     }
 }
 
-// TIMER
 function atualizarTimer(){
     const s = new Date().getSeconds();
     const t1 = 60 - s;
     document.querySelectorAll("[id^='timer_']").forEach(el=>el.innerText="⏱️ "+t1+"s");
 }
 
-// LOOP PRINCIPAL
 setInterval(async ()=>{
     const s = new Date().getSeconds();
     atualizarTimer();
 
-    // gerar sinais a cada minuto
     if(s===0){
         pares.forEach(p=>{
             tempos[p].forEach(t=>{
@@ -181,9 +191,7 @@ setInterval(async ()=>{
         });
     }
 
-    // verificar histórico
     historico.forEach(h=>verificarWinLoss(h));
-
 },1000);
 
 criar();
