@@ -1,8 +1,111 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Sala de Sinais PRO</title>
+
+<style>
+body {
+  background: #0f172a;
+  color: white;
+  font-family: Arial;
+  text-align: center;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+  padding: 20px;
+}
+
+.card {
+  background: #1e293b;
+  padding: 20px;
+  border-radius: 15px;
+}
+
+.sinal {
+  font-size: 28px;
+}
+
+.call { color: #00ff88; }
+.put { color: #ff3b3b; }
+</style>
+
+</head>
+
 <body>
 
-<h1>FUNCIONANDO 🔥</h1>
+<h1>🔥 Sala de Sinais PRO</h1>
+
+<div class="grid">
+
+  <div class="card">
+    <h3>EUR/USD</h3>
+    <div id="eurusd" class="sinal">Carregando...</div>
+  </div>
+
+  <div class="card">
+    <h3>GBP/USD</h3>
+    <div id="gbpusd" class="sinal">Carregando...</div>
+  </div>
+
+  <div class="card">
+    <h3>EUR/JPY</h3>
+    <div id="eurjpy" class="sinal">Carregando...</div>
+  </div>
+
+  <div class="card">
+    <h3>GBP/JPY</h3>
+    <div id="gbpjpy" class="sinal">Carregando...</div>
+  </div>
+
+</div>
+
+<script>
+const API_KEY = "b7a8442395824a299190dc6f20845d6a";
+
+async function pegarSinal(par, id) {
+  try {
+    const url = `https://api.twelvedata.com/time_series?symbol=${par}&interval=1min&outputsize=2&apikey=${API_KEY}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.values) {
+      document.getElementById(id).innerText = "ERRO API";
+      return;
+    }
+
+    const ultimo = data.values[0];
+    const anterior = data.values[1];
+
+    const close = parseFloat(ultimo.close);
+    const prev = parseFloat(anterior.close);
+
+    if (close > prev) {
+      document.getElementById(id).innerText = "CALL";
+      document.getElementById(id).className = "sinal call";
+    } else {
+      document.getElementById(id).innerText = "PUT";
+      document.getElementById(id).className = "sinal put";
+    }
+
+  } catch (e) {
+    document.getElementById(id).innerText = "ERRO";
+  }
+}
+
+function rodar() {
+  pegarSinal("EUR/USD", "eurusd");
+  pegarSinal("GBP/USD", "gbpusd");
+  pegarSinal("EUR/JPY", "eurjpy");
+  pegarSinal("GBP/JPY", "gbpjpy");
+}
+
+setInterval(rodar, 60000);
+rodar();
+</script>
 
 </body>
 </html>
